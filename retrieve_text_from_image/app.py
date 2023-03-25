@@ -116,6 +116,9 @@ def lambda_handler(event, context):
     if("imageString" not in body):
         return sendErrorResponse(400, "Missing: imageString field not provided")
 
+    if(len(body["secretKey"])==0):
+        return sendErrorResponse(400, "Secret Key can't be empty")
+
     errorStatus, decodedMessage = retrieveDataFromImage(body["secretKey"], body["imageString"])
 
     if(errorStatus):

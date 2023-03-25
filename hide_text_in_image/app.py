@@ -121,6 +121,9 @@ def lambda_handler(event, context):
     if(len(body["message"]) > maxNoOfAllowedChars):
         return sendErrorResponse(400, "Message length exceeds 2048 characters")
 
+    if(len(body["secretKey"])==0):
+        return sendErrorResponse(400, "Secret Key can't be empty")
+
     imageWithData = hideDataToImage(body["message"], body["secretKey"], body["imageString"])
 
     return {
