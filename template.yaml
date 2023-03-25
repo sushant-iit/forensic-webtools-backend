@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 256
+
+Resources:
+  HideTextInImageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Architectures:
+        - x86_64
+      Events:
+        HideImageInText:
+          Type: Api
+          Properties:
+            Path: /hideTextInImage
+            Method: POST
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./hide_text_in_image
+      DockerTag: v1
+
+  RetrieveTextFromImageFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        PackageType: Image
+        Architectures:
+          - x86_64
+        Events:
+          RetrieveTextFromImage:
+            Type: Api
+            Properties:
+              Path: /retrieveTextFromImage
+              Method: POST
+      Metadata:
+        Dockerfile: Dockerfile
+        DockerContext: ./retrieve_text_from_image
+        DockerTag: v1
+
+  EmbedWaterMarkFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        PackageType: Image
+        Architectures:
+          - x86_64
+        Events:
+          EmbedWaterMark:
+            Type: Api
+            Properties:
+              Path: /embedWaterMark
+              Method: POST
+      Metadata:
+        Dockerfile: Dockerfile
+        DockerContext: ./embed_watermark
+        DockerTag: v1
+
+  ExtractWaterMarkFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        PackageType: Image
+        Architectures:
+          - x86_64
+        Events:
+          ExtractWaterMark:
+            Type: Api
+            Properties:
+              Path: /extractWaterMark
+              Method: POST
+      Metadata:
+        Dockerfile: Dockerfile
+        DockerContext: ./extract_watermark
+        DockerTag: v1

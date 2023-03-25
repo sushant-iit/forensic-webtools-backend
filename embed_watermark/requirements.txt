@@ -1,0 +1,4 @@
+requests
+opencv-python-headless==4.7.0.72
+numpy==1.24.1
+scipy==1.10.0
