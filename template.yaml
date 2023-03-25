@@ -3,8 +3,8 @@ Transform: AWS::Serverless-2016-10-31
 
 Globals:
   Function:
-    Timeout: 3
-    MemorySize: 256
+    Timeout: 20
+    MemorySize: 512
 
 Resources:
   HideTextInImageFunction:
@@ -73,4 +73,21 @@ Resources:
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./extract_watermark
+        DockerTag: v1
+
+  DocumentSimilarityFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        PackageType: Image
+        Architectures:
+          - x86_64
+        Events:
+          ExtractWaterMark:
+            Type: Api
+            Properties:
+              Path: /getDocumnetSimilarity
+              Method: POST
+      Metadata:
+        Dockerfile: Dockerfile
+        DockerContext: ./check_document_similarity
         DockerTag: v1
