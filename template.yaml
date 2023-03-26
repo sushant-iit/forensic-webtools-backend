@@ -7,6 +7,15 @@ Globals:
     MemorySize: 512
 
 Resources:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowHeaders: "'Content-Type'"
+        AllowMethods: "'POST,GET,OPTIONS'"
+        AllowOrigin: "'*'"
+
   HideTextInImageFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -19,6 +28,7 @@ Resources:
           Properties:
             Path: /hideTextInImage
             Method: POST
+            RestApiId: !Ref MyApi
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ./hide_text_in_image
@@ -36,6 +46,7 @@ Resources:
             Properties:
               Path: /retrieveTextFromImage
               Method: POST
+              RestApiId: !Ref MyApi
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./retrieve_text_from_image
@@ -53,6 +64,7 @@ Resources:
             Properties:
               Path: /embedWaterMark
               Method: POST
+              RestApiId: !Ref MyApi
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./embed_watermark
@@ -70,6 +82,7 @@ Resources:
             Properties:
               Path: /extractWaterMark
               Method: POST
+              RestApiId: !Ref MyApi
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./extract_watermark
@@ -87,6 +100,7 @@ Resources:
             Properties:
               Path: /getDocumnetSimilarity
               Method: POST
+              RestApiId: !Ref MyApi
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./check_document_similarity
