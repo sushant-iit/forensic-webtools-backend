@@ -1,7 +1,9 @@
 import json
 import numpy as np
 import cv2
+import os
 import base64
+import boto3
 from scipy.fftpack import dct
 
 #Internal Parameters: Don't change without understanding the code as it may cause hazards
@@ -12,9 +14,18 @@ fact = 16       # To cope up with np.uint8 of idct
 DCT_ROW = 2     # Row where waterMark is stored in 8x8 dct transform of the image
 DCT_COL = 2     # Col where waterMark is stored in 8x8 dct transform of the image
 
+s3 = boto3.resource('s3')
+bucket_name = "forensic-tools-s3-bucket"
+
 def sendErrorResponse(statusCode, errMessage):
     return {
         "statusCode": statusCode,
+        'headers': {
+            'Access-Control-Allow-Headers' : 'Content-Type',
+            'Access-Control-Allow-Origin' : '*',
+            'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
+            'Content-Type': 'application/json'
+        },
         "body": json.dumps(
             {
                 "message": errMessage
@@ -22,16 +33,19 @@ def sendErrorResponse(statusCode, errMessage):
         ),
     }
 
-def base64_to_cv2(base64_string):
-    img_data = base64.b64decode(base64_string)
-    img_array = np.frombuffer(img_data, dtype=np.uint8)
-    img = cv2.imdecode(img_array, cv2.IMREAD_UNCHANGED)
-    return img
+def s3_to_cv2(fileName):
+    object = s3.Object(bucket_name, fileName)
+    image_content = object.get()['Body'].read()
+    nparr = np.frombuffer(image_content, np.uint8)
+    srcImage = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+    return srcImage
 
-def cv2_to_base64(img):
-    _, img_data = cv2.imencode('.png', img)
-    base64_string = base64.b64encode(img_data).decode('utf-8')
-    return base64_string
+def cv2_to_s3Url(image, format, fileName):
+    image = cv2.imencode(format, image)[1].tobytes()
+    responseFileName = os.path.splitext(fileName)[0] + format
+    s3.Bucket(bucket_name).put_object(Key=responseFileName, Body=image)
+    responseUrl = f'https://{bucket_name}.s3.amazonaws.com/{responseFileName}'
+    return responseUrl
 
 # This idea is motivated by RC4 algorithm to generate randomised permuted array from secret key
 def getPermutedArray(secretKey, n):
@@ -49,10 +63,9 @@ def getPermutedArray(secretKey, n):
         S[j] = temp
     return S
 
-def extractWaterMarkImage(imageEmbeddedWithWaterMarkStr, secretKey):
+def extractWaterMarkImage(imageEmbeddedWithWaterMark, secretKey):
 
     # Get the data:
-    imageEmbeddedWithWaterMark = base64_to_cv2(imageEmbeddedWithWaterMarkStr)
     imageEmbeddedWithWaterMark = cv2.resize(imageEmbeddedWithWaterMark, (H, H), interpolation=cv2.INTER_CUBIC)
     imageEmbeddedWithWaterMarkY, _, _ = cv2.split(cv2.cvtColor(imageEmbeddedWithWaterMark, cv2.COLOR_BGR2YUV))
 
@@ -85,35 +98,44 @@ def extractWaterMarkImage(imageEmbeddedWithWaterMarkStr, secretKey):
     waterMarkImageExtracted = [int(waterMarkImageBinary[i])*255 for i in range(0, len(waterMarkImageBinary))]
     waterMarkImageExtracted = np.uint8(waterMarkImageExtracted).reshape((W, W))
 
-    return cv2_to_base64(waterMarkImageExtracted)
+    return waterMarkImageExtracted
 
 def lambda_handler(event, context):
-    body = json.loads(event['body'])
+    try:
 
-    # Handle error cases:
-    if("embeddedImageStr" not in body):
-        return sendErrorResponse(400, "Missing: embeddedImageStr field not provided")
-    
-    if("secretKey" not in body):
-        return sendErrorResponse(400, "Missing: secretKey field not provided")
+        body = json.loads(event['body'])
 
-    if(len(body["secretKey"])==0):
-        return sendErrorResponse(400, "Secret Key can't be empty")
-    
-    extractedWaterMark = extractWaterMarkImage(body["embeddedImageStr"], body["secretKey"])
+        # Handle error cases:
+        if("embeddedImageFileName" not in body):
+            return sendErrorResponse(400, "Missing: embeddedImageFileName field not provided")
+        
+        if("secretKey" not in body):
+            return sendErrorResponse(400, "Missing: secretKey field not provided")
 
-    return {
-        "statusCode": 200,
-        'headers': {
-            'Access-Control-Allow-Headers' : 'Content-Type',
-            'Access-Control-Allow-Origin' : '*',
-            'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
-            'Content-Type': 'application/json'
-        },
-        "body": json.dumps(
-            {
-                "message": "success",
-                "extractedWaterMark": extractedWaterMark
-            }
-        ),
-    }
+        if(len(body["secretKey"])==0):
+            return sendErrorResponse(400, "Secret Key can't be empty")
+
+        embeddedImage = s3_to_cv2(body["embeddedImageFileName"])
+        secretKey = body["secretKey"]
+        
+        extractedWaterMark = extractWaterMarkImage(embeddedImage, secretKey)
+        extractedWaterMarkUrl = cv2_to_s3Url(extractedWaterMark, '.jpg', body["embeddedImageFileName"])
+
+        return {
+            "statusCode": 200,
+            'headers': {
+                'Access-Control-Allow-Headers' : 'Content-Type',
+                'Access-Control-Allow-Origin' : '*',
+                'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
+                'Content-Type': 'application/json'
+            },
+            "body": json.dumps(
+                {
+                    "message": "success",
+                    "extractedWaterMarkUrl": extractedWaterMarkUrl
+                }
+            ),
+        }
+
+    except Exception as e:
+        return sendErrorResponse(500, str(e))

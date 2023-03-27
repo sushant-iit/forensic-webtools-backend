@@ -164,6 +164,15 @@ Resources:
               Path: /extractWaterMark
               Method: POST
               RestApiId: !Ref MyApi
+        Policies:
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:PutObjectAcl
+                - s3:GetObject
+                - s3:GetObjectAcl
+              Resource: !Sub "${MyBucket.Arn}/*"
         Environment:
           Variables:
                 S3_BUCKET_ARN: !GetAtt MyBucket.Arn
