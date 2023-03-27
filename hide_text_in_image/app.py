@@ -10,6 +10,12 @@ maxNoOfAllowedChars = 2048
 def sendErrorResponse(statusCode, errMessage):
     return {
         "statusCode": statusCode,
+        'headers': {
+            'Access-Control-Allow-Headers' : 'Content-Type',
+            'Access-Control-Allow-Origin' : '*',
+            'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
+            'Content-Type': 'application/json'
+        },
         "body": json.dumps(
             {
                 "message": errMessage
@@ -106,38 +112,42 @@ def hideDataToImage(message, secretKey, srcImageString):
 
 
 def lambda_handler(event, context):
-    body = json.loads(event['body'])
+    try :
+        body = json.loads(event['body'])
 
-    # Handle error cases:
-    if("message" not in body):
-        return sendErrorResponse(400, "Missing: message field not provided")
+        # Handle error cases:
+        if("message" not in body):
+            return sendErrorResponse(400, "Missing: message field not provided")
+        
+        if("secretKey" not in body):
+            return sendErrorResponse(400, "Missing: secretKey field not provided")
+
+        if("imageString" not in body):
+            return sendErrorResponse(400, "Missing: imageString field not provided")
+        
+        if(len(body["message"]) > maxNoOfAllowedChars):
+            return sendErrorResponse(400, "Message length exceeds 2048 characters")
+
+        if(len(body["secretKey"])==0):
+            return sendErrorResponse(400, "Secret Key can't be empty")
+
     
-    if("secretKey" not in body):
-        return sendErrorResponse(400, "Missing: secretKey field not provided")
+        imageWithData = hideDataToImage(body["message"], body["secretKey"], body["imageString"])
 
-    if("imageString" not in body):
-        return sendErrorResponse(400, "Missing: imageString field not provided")
-    
-    if(len(body["message"]) > maxNoOfAllowedChars):
-        return sendErrorResponse(400, "Message length exceeds 2048 characters")
-
-    if(len(body["secretKey"])==0):
-        return sendErrorResponse(400, "Secret Key can't be empty")
-
-    imageWithData = hideDataToImage(body["message"], body["secretKey"], body["imageString"])
-
-    return {
-        "statusCode": 200,
-        'headers': {
-            'Access-Control-Allow-Headers' : 'Content-Type',
-            'Access-Control-Allow-Origin' : '*',
-            'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
-            'Content-Type': 'application/json'
-        },
-        "body": json.dumps(
-            {
-                "message": "success",
-                "imageWithData": imageWithData
-            }
-        ),
-    }
+        return {
+            "statusCode": 200,
+            'headers': {
+                'Access-Control-Allow-Headers' : 'Content-Type',
+                'Access-Control-Allow-Origin' : '*',
+                'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
+                'Content-Type': 'application/json'
+            },
+            "body": json.dumps(
+                {
+                    "message": "success",
+                    "imageWithData": imageWithData
+                }
+            ),
+        }
+    except Exception as e:
+        return sendErrorResponse(500, str(e))

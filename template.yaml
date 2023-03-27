@@ -7,6 +7,59 @@ Globals:
     MemorySize: 512
 
 Resources:
+  MyBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: forensic-tools-s3-bucket
+        CorsConfiguration:
+          CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - HEAD
+              - POST
+              - DELETE
+            AllowedOrigins:
+              - "*"
+            ExposedHeaders:
+              - ETag
+
+  MyBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MyBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub arn:aws:s3:::${MyBucket}/*
+
+  MyUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: forensic-backend-user
+      Policies:
+        - PolicyName: "ForensicUserPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:PutObjectAcl"
+                  - "s3:GetObject"
+                  - "s3:GetObjectAcl"
+                Resource: !Sub "arn:aws:s3:::${MyBucket}/*"
+
+  MyAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref MyUser
+
   MyApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -29,6 +82,9 @@ Resources:
             Path: /hideTextInImage
             Method: POST
             RestApiId: !Ref MyApi
+      Environment:
+        Variables:
+              S3_BUCKET_ARN: !GetAtt MyBucket.Arn
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ./hide_text_in_image
@@ -47,6 +103,9 @@ Resources:
               Path: /retrieveTextFromImage
               Method: POST
               RestApiId: !Ref MyApi
+        Environment:
+          Variables:
+                S3_BUCKET_ARN: !GetAtt MyBucket.Arn
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./retrieve_text_from_image
@@ -65,6 +124,9 @@ Resources:
               Path: /embedWaterMark
               Method: POST
               RestApiId: !Ref MyApi
+        Environment:
+          Variables:
+                S3_BUCKET_ARN: !GetAtt MyBucket.Arn
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./embed_watermark
@@ -83,6 +145,9 @@ Resources:
               Path: /extractWaterMark
               Method: POST
               RestApiId: !Ref MyApi
+        Environment:
+          Variables:
+                S3_BUCKET_ARN: !GetAtt MyBucket.Arn
       Metadata:
         Dockerfile: Dockerfile
         DockerContext: ./extract_watermark
@@ -105,3 +170,11 @@ Resources:
         Dockerfile: Dockerfile
         DockerContext: ./check_document_similarity
         DockerTag: v1
+
+Outputs:
+  AccessKeyId:
+    Description: forensic-backend-user
+    Value: !Ref MyAccessKey
+  SecretAccessKey:
+    Description: forensic-backend-user
+    Value: !GetAtt MyAccessKey.SecretAccessKey
