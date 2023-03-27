@@ -11,6 +11,11 @@ Resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: forensic-tools-s3-bucket
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteDevArtifactsAfterOneDay
+              Status: "Enabled"
+              ExpirationInDays: 1
         CorsConfiguration:
           CorsRules:
           - AllowedHeaders:
