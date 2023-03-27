@@ -1,14 +1,23 @@
 import json
 import numpy as np
+import boto3
 import cv2
 import base64
 
 delimiter = "##EE##"
 maxNoOfAllowedChars = 2048
+s3 = boto3.resource('s3')
+bucket_name = "forensic-tools-s3-bucket"
 
 def sendErrorResponse(statusCode, errMessage):
     return {
         "statusCode": statusCode,
+        'headers': {
+            'Access-Control-Allow-Headers' : 'Content-Type',
+            'Access-Control-Allow-Origin' : '*',
+            'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
+            'Content-Type': 'application/json'
+        },
         "body": json.dumps(
             {
                 "message": errMessage
@@ -52,9 +61,7 @@ def getPermutedArray(secretKey, n):
         S[j] = temp
     return S
 
-def retrieveDataFromImage(secretKey, srcImageString):
-    # The imread unchanged is necessary to prevent converting single channel to three channel data (by duplication of same value into BGR layers)
-    srcImage = base64_to_cv2(srcImageString)
+def retrieveDataFromImage(secretKey, srcImage):
     binaryMessage = ""
     binaryDelimiter = convertASCIIStringToBinaryString(delimiter)
     binaryDelimiterSize = len(binaryDelimiter)
@@ -107,35 +114,44 @@ def retrieveDataFromImage(secretKey, srcImageString):
     return errorStatus, finalDecodeMessage
     
 def lambda_handler(event, context):
-    body = json.loads(event['body'])
+    try :
+        body = json.loads(event['body'])
 
-    # Handle error cases:
-    if("secretKey" not in body):
-        return sendErrorResponse(400, "Missing: secretKey field not provided")
+        # Handle error cases:
+        if("secretKey" not in body):
+            return sendErrorResponse(400, "Missing: secretKey field not provided")
 
-    if("imageString" not in body):
-        return sendErrorResponse(400, "Missing: imageString field not provided")
+        if("fileName" not in body):
+            return sendErrorResponse(400, "Missing: fileName field not provided")
 
-    if(len(body["secretKey"])==0):
-        return sendErrorResponse(400, "Secret Key can't be empty")
+        if(len(body["secretKey"])==0):
+            return sendErrorResponse(400, "Secret Key can't be empty")
 
-    errorStatus, decodedMessage = retrieveDataFromImage(body["secretKey"], body["imageString"])
+        # Get the object from the S3 bucket
+        object = s3.Object(bucket_name, body["fileName"])
+        image_content = object.get()['Body'].read()
+        nparr = np.frombuffer(image_content, np.uint8)
+        srcImage = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
 
-    if(errorStatus):
-        return sendErrorResponse(400, "Either secretKey is wrong or message size exceeds 2048 characters")
+        errorStatus, decodedMessage = retrieveDataFromImage(body["secretKey"], srcImage)
 
-    return {
-        "statusCode": 200,
-        'headers': {
-            'Access-Control-Allow-Headers' : 'Content-Type',
-            'Access-Control-Allow-Origin' : '*',
-            'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
-            'Content-Type': 'application/json'
-        },
-        "body": json.dumps(
-            {
-                "message": "success",
-                "retrievedData": decodedMessage
-            }
-        ),
-    }
+        if(errorStatus):
+            return sendErrorResponse(400, "Either secretKey is wrong or message size exceeds 2048 characters")
+
+        return {
+            "statusCode": 200,
+            'headers': {
+                'Access-Control-Allow-Headers' : 'Content-Type',
+                'Access-Control-Allow-Origin' : '*',
+                'Access-Control-Allow-Methods' : 'POST,GET,OPTIONS',
+                'Content-Type': 'application/json'
+            },
+            "body": json.dumps(
+                {
+                    "message": "success",
+                    "retrievedData": decodedMessage
+                }
+            ),
+        }
+    except Exception as e:
+        return sendErrorResponse(500, str(e))
