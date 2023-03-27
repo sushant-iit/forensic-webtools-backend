@@ -1,3 +1,5 @@
+import os
+import boto3
 import json
 import numpy as np
 import cv2
@@ -6,6 +8,8 @@ import base64
 
 delimiter = "##EE##"
 maxNoOfAllowedChars = 2048
+s3 = boto3.resource('s3')
+bucket_name = "forensic-tools-s3-bucket"
 
 def sendErrorResponse(statusCode, errMessage):
     return {
@@ -23,17 +27,6 @@ def sendErrorResponse(statusCode, errMessage):
         ),
     }
 
-
-def base64_to_cv2(base64_string):
-    img_data = base64.b64decode(base64_string)
-    img_array = np.frombuffer(img_data, dtype=np.uint8)
-    img = cv2.imdecode(img_array, cv2.IMREAD_UNCHANGED)
-    return img
-
-def cv2_to_base64(img):
-    _, img_data = cv2.imencode('.png', img)
-    base64_string = base64.b64encode(img_data).decode('utf-8')
-    return base64_string
 
 def convertASCIIStringToBinaryString(message):
     result = ""
@@ -57,10 +50,9 @@ def getPermutedArray(secretKey, n):
         S[j] = temp
     return S
 
-def hideDataToImage(message, secretKey, srcImageString):
+def hideDataToImage(message, secretKey, srcImage):
 
     # The imread unchanged is necessary to prevent converting single channel to three channel data (by duplication of same value into BGR layers)
-    srcImage = base64_to_cv2(srcImageString)
     srcImageOriginal = copy.deepcopy(srcImage) # For PSNR calculation later on
     message += delimiter
     binaryMessage = convertASCIIStringToBinaryString(message)
@@ -108,7 +100,7 @@ def hideDataToImage(message, secretKey, srcImageString):
                     count = count + 1  
     
     print("The data is stored successfully with a psnr of ", cv2.PSNR(srcImage, srcImageOriginal))
-    return cv2_to_base64(srcImage)
+    return srcImage
 
 
 def lambda_handler(event, context):
@@ -122,8 +114,8 @@ def lambda_handler(event, context):
         if("secretKey" not in body):
             return sendErrorResponse(400, "Missing: secretKey field not provided")
 
-        if("imageString" not in body):
-            return sendErrorResponse(400, "Missing: imageString field not provided")
+        if("fileName" not in body):
+            return sendErrorResponse(400, "Missing: fileName field not provided")
         
         if(len(body["message"]) > maxNoOfAllowedChars):
             return sendErrorResponse(400, "Message length exceeds 2048 characters")
@@ -131,8 +123,18 @@ def lambda_handler(event, context):
         if(len(body["secretKey"])==0):
             return sendErrorResponse(400, "Secret Key can't be empty")
 
-    
-        imageWithData = hideDataToImage(body["message"], body["secretKey"], body["imageString"])
+        # Get the object from the S3 bucket
+        object = s3.Object(bucket_name, body["fileName"])
+        image_content = object.get()['Body'].read()
+        nparr = np.frombuffer(image_content, np.uint8)
+        srcImage = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+
+        # Get the response and store it to s3 bucket
+        responseImage = hideDataToImage(body["message"], body["secretKey"], srcImage)
+        responseImage = cv2.imencode('.png', responseImage)[1].tobytes()
+        responseFileName = os.path.splitext(body["fileName"])[0] + ".png"
+        s3.Bucket(bucket_name).put_object(Key=responseFileName, Body=responseImage)
+        responseUrl = f'https://{bucket_name}.s3.amazonaws.com/{responseFileName}'
 
         return {
             "statusCode": 200,
@@ -145,7 +147,7 @@ def lambda_handler(event, context):
             "body": json.dumps(
                 {
                     "message": "success",
-                    "imageWithData": imageWithData
+                    "imageWithDataUrl": responseUrl
                 }
             ),
         }

@@ -1,3 +1,4 @@
 requests
 opencv-python-headless
 numpy==1.24.1
+boto3==1.26.99

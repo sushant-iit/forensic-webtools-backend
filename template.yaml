@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 
 Globals:
   Function:
-    Timeout: 20
+    Timeout: 30
     MemorySize: 512
 
 Resources:
@@ -82,9 +82,19 @@ Resources:
             Path: /hideTextInImage
             Method: POST
             RestApiId: !Ref MyApi
+      Policies:
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:GetObject
+              - s3:GetObjectAcl
+            Resource: !Sub "${MyBucket.Arn}/*"
       Environment:
         Variables:
               S3_BUCKET_ARN: !GetAtt MyBucket.Arn
+              BUCKET_NAME: !Ref MyBucket
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ./hide_text_in_image
