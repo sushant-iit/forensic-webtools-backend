@@ -72,6 +72,11 @@ def getPermutedArray(secretKey, n):
 
 def embedWaterMarkInHostImage(hostImage, waterMarkImage, secretKey):
 
+    if len(hostImage.shape) == 2:
+        hostImage = cv2.cvtColor(hostImage, cv2.COLOR_GRAY2BGR)
+    if len(waterMarkImage.shape) == 2:
+        waterMarkImage = cv2.cvtColor(waterMarkImage, cv2.COLOR_GRAY2BGR)
+
     # Convert to YUV format from BGR format (we will store information in Y channel denoting luminance):
     hostOriginalDim = (hostImage.shape[1], hostImage.shape[0])
     hostImage = cv2.resize(hostImage, (H, H), interpolation=cv2.INTER_CUBIC)

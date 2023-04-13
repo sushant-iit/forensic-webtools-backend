@@ -66,6 +66,8 @@ def getPermutedArray(secretKey, n):
 def extractWaterMarkImage(imageEmbeddedWithWaterMark, secretKey):
 
     # Get the data:
+    if len(imageEmbeddedWithWaterMark.shape) == 2:
+        imageEmbeddedWithWaterMark = cv2.cvtColor(imageEmbeddedWithWaterMark, cv2.COLOR_GRAY2BGR)
     imageEmbeddedWithWaterMark = cv2.resize(imageEmbeddedWithWaterMark, (H, H), interpolation=cv2.INTER_CUBIC)
     imageEmbeddedWithWaterMarkY, _, _ = cv2.split(cv2.cvtColor(imageEmbeddedWithWaterMark, cv2.COLOR_BGR2YUV))
 
